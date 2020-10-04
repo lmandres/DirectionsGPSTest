@@ -7,7 +7,7 @@ import requests
 import gpsScanner
 
 apiURL = "http://www.mapquestapi.com/directions/v2/route"
-appKey = "GGpAZjZy8IHEWmbYs4t8g0GGqB4SQkR7"
+appKey = ""
 
 
 if __name__ == "__main__":

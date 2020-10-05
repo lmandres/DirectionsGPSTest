@@ -7,7 +7,8 @@ import requests
 
 import gpsScanner
 import googleASRRecorder
-import pocketsphinx
+import liveSpeechASR
+
 
 apiURL = "http://www.mapquestapi.com/directions/v2/route"
 appKey = ""
@@ -21,7 +22,12 @@ if __name__ == "__main__":
     tts.setProperty("rate", 150)
 
     asrRecorder = googleASRRecorder.Recorder()
+    liveSpeech = liveSpeechASR.Recorder()
 
+    latitude = 39.357533
+    longitude = -76.551432
+
+    '''
     gps = gpsScanner.GPSScanner(
         serialPortIn="/dev/ttyUSB0",
         serialBaudIn=4800
@@ -57,6 +63,7 @@ if __name__ == "__main__":
             print("Getting start location . . .")
 
         time.sleep(1)
+    '''
 
     locations.append(
         "{},{}".format(
@@ -81,9 +88,12 @@ if __name__ == "__main__":
     tts.say(prompt)
     tts.runAndWait()
 
-    for resp in pocketsphinx.LiveSpeech():
+    while True:
+        resp = None
+        for wordItem in liveSpeech.listen():
+            if wordItem.upper() in ("YES", "NO"):
+                resp = wordItem.upper()
 
-        print(resp)
         if str(resp).upper() == "YES":
 
             prompt = "Say your next waypoint or final destination."
@@ -149,7 +159,13 @@ if __name__ == "__main__":
         tts.say(prompt)
         tts.runAndWait()
 
-        for resp in pocketsphinx.LiveSpeech():
+        while True:
+
+            resp = None
+            for wordItem in liveSpeech.listen():
+                if wordItem.upper() in ("YES", "NO"):
+                    resp = wordItem.upper()
+
 
             print(resp)
             if str(resp).upper() == "NO":
@@ -177,4 +193,4 @@ if __name__ == "__main__":
             tts.say(maneuverHash["narrative"])
             tts.runAndWait()
 
-    gps.stopLocate()
+    #gps.stopLocate()

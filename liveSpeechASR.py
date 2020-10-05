@@ -1,11 +1,12 @@
 import audioop
+import io
 import math
+import os
 import struct
 import time
 
+import pocketsphinx
 import pyaudio
-
-from google.cloud import speech
 
 Threshold = 20
 
@@ -36,11 +37,6 @@ class Recorder:
         rms = math.pow(sum_squares / count, 0.5)
 
         return rms * 1000
-
-    def __init__(self):
-        self.speechClient = speech.SpeechClient.from_service_account_json(
-            ""
-        )
 
     def initializeStream(self):
         p = pyaudio.PyAudio()
@@ -83,27 +79,23 @@ class Recorder:
     def translateSpeech(self, recording):
 
         print("Translating speech . . .")
-        transcript = None
+
+        bytesIO = io.BytesIO(recording)
+        buf = bytearray(1024)
 
         content = recording
-        audio = speech.RecognitionAudio(content=content)
-        config = speech.RecognitionConfig(
-            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-            sample_rate_hertz=16000,
-            language_code="en-US"
-        )
-        resp = self.speechClient.recognize(
-            request={
-                "config": config,
-                "audio": audio
-            }
-        )
+        config = pocketsphinx.DefaultConfig()
+        config.set_string("-hmm", os.path.join(pocketsphinx.get_model_path(), "en-us"))
+        config.set_string("-lm", os.path.join(pocketsphinx.get_model_path(), "en-us.lm.bin"))
+        config.set_string("-dict", os.path.join(pocketsphinx.get_model_path(), "cmudict-en-us.dict"))
+        decoder = pocketsphinx.Decoder(config)
 
-        if resp.results:
-            result = resp.results[0]
-            transcript = result.alternatives[0].transcript
+        decoder.start_utt()
+        while bytesIO.readinto(buf):
+            decoder.process_raw(buf, False, False)
+        decoder.end_utt()
 
-        return transcript
+        return [seg.word for seg in decoder.seg()]
 
     def listen(self, callback=None):
         self.initializeStream()

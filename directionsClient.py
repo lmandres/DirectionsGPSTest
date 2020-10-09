@@ -22,6 +22,7 @@ class DirectionsClient():
 
     directionsAPIURL = None
     directionsAPIKey = None
+    geocodingAPIURL = None
 
     directionsHash = None 
 
@@ -31,6 +32,7 @@ class DirectionsClient():
         configFile="config.xml",
         directionsAPIURLIn=None,
         directionsAPIKeyIn=None,
+        geocodingAPIURLIn=None,
         gpsPortIn=None,
         gpsBaudIn=None,
         audioInputDeviceIndexIn=None,
@@ -48,6 +50,10 @@ class DirectionsClient():
         self.directionsAPIKey = self.configReader.getDirectionsAPIKey()
         if directionsAPIKeyIn:
             self.directionsAPIKey = directionsAPIKeyIn
+
+        self.geocodingAPIURL = self.configReader.getGeocodingAPIURL()
+        if geocodingAPIURLIn:
+            self.geocodingAPIURL = geocodingAPIURL
 
         ttsWordRate = self.configReader.getTextToSpeechWordRate()
         if ttsWordRateIn:
@@ -166,7 +172,11 @@ class DirectionsClient():
         locationsList = []
         locationsList.append(self.getStartLocation())
         prompt = "Say your first waypoint or destination."
-        locationsList.append(self.getLocationFromASR(prompt))
+        locationsList.append(
+            self.confirmLocationResult(
+                self.getLocationFromASR(prompt)
+            )
+        )
 
         while True:
 
@@ -181,7 +191,11 @@ class DirectionsClient():
 
             if str(resp).upper() == "YES":
                 prompt = "Say your next waypoint or final destination."
-                locationsList.append(self.getLocationFromASR(prompt))
+                locationsList.append(
+                    self.confirmLocationResult(
+                        self.getLocationFromASR(prompt)
+                    )
+                )
             elif str(resp).upper() == "NO":
                 break
             else:
@@ -192,80 +206,85 @@ class DirectionsClient():
 
         return locationsList
 
-    def confirmLocationResults(self, locationsListIn):
+    def confirmLocationResult(self, locationIn):
+        
+        returnLocation = locationIn
+        reqData = {
+            "location": returnLocation,
+            "options": {
+                "thumbMaps": False
+            }
+        }
+        req = requests.post(
+            (
+                str(self.geocodingAPIURL) +
+                "?key=" +
+                str(self.directionsAPIKey)
+            ),
+            json=reqData
+        )
+        locationResp = json.loads(req.text)
+        locationResult = locationResp["results"][0]["locations"][0]
 
-        locationsList = locationsListIn
+        prompt = (
+            "Please confirm the following waypoint or " +
+            "destination."
+        )
+        self.printAndSay(prompt)
 
-        locationIndex = 0
+        print(
+            "Original location input: " +
+            str(locationIn)
+        )
+        print(
+            "Interpreted location response: " +
+            str(locationResult)
+        )
+
+        self.printAndSay("Is this correct?")
+
         while True:
 
-            locationIndex += 1
+            resp = None
+            for wordItem in self.pocketSphinxASR.listen().split(" "):
+                print(wordItem)
+                if wordItem.upper() in ("YES", "NO"):
+                    resp = wordItem.upper()
+                    break
 
-            if locationIndex >= len(locationsList):
+            if str(resp).upper() == "NO":
+                prompt = "Enter waypoint or destination." 
+                returnLocation = self.confirmLocationResult(
+                    self.getLocationFromASR(prompt)
+                )
                 break
+            elif str(resp).upper() == "YES":
+                break
+            else:
+                self.printAndSay(
+                    "I did not understand that.  " +
+                    "Please restate your answer."
+                )
 
-            reqData = {
-                "locations": locationsList
-            }
-            req = requests.post(
-                (
-                    str(self.directionsAPIURL) +
-                    "?key=" +
-                    str(self.directionsAPIKey)
-                ),
-                json=reqData
-            )
-            self.directionsHash = json.loads(req.text)
-            directionLocations = self.directionsHash["route"]["locations"]
+        return returnLocation
 
-            prompt = (
-                "Please confirm the following waypoint or " +
-                "destination."
-            )
-            self.printAndSay(prompt)
+    def showDirections(self, locationsListIn):
 
-            print(
-                "Waypoint/destination: " +
-                str(locationIndex)
-            )
-            print(
-                "Original location input: " +
-                str(locationsList[locationIndex])
-            )
-            print(
-                "Interpreted location response: " +
-                str(directionLocations[locationIndex])
-            )
+        reqData = {
+            "locations": locationsListIn
+        }
+        req = requests.post(
+            (
+                str(self.directionsAPIURL) +
+                "?key=" +
+                str(self.directionsAPIKey)
+            ),
+            json=reqData
+        )
+        directionsResp = json.loads(req.text)
 
-            self.printAndSay("Is this correct?")
-
-            while True:
-
-                resp = None
-                for wordItem in self.pocketSphinxASR.listen().split(" "):
-                    print(wordItem)
-                    if wordItem.upper() in ("YES", "NO"):
-                        resp = wordItem.upper()
-                        break
-
-                if str(resp).upper() == "NO":
-                     prompt = "Enter waypoint or destination." 
-                     locationsList[locationIndex] = self.getLocationFromASR(prompt)
-                     locationIndex -= 1
-                     break
-                elif str(resp).upper() == "YES":
-                     break
-                else:
-                    self.printAndSay(
-                        "I did not understand that.  " +
-                        "Please restate your answer."
-                    )
-
-        return locationsList
-
-    def showDirections(self):
-        for legIndex in range(0, len(self.directionsHash["route"]["legs"]), 1):
-            legHash = self.directionsHash["route"]["legs"][legIndex]
+        for legIndex in range(0, len(directionsResp["route"]["legs"]), 1):
+            legHash = directionsResp["route"]["legs"][legIndex]
             for maneuverIndex in range(0, len(legHash["maneuvers"]), 1):
                 maneuverHash = legHash["maneuvers"][maneuverIndex]
                 self.printAndSay(maneuverHash["narrative"])
@@ -278,6 +297,5 @@ class DirectionsClient():
 if __name__ == "__main__":
     dc = DirectionsClient()
     locationsList = dc.getLocationSearchList()
-    locationsList = dc.confirmLocationResults(locationsList)
-    dc.showDirections()
+    dc.showDirections(locationsList)
     dc.stopDirections()

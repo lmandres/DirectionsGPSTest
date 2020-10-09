@@ -19,10 +19,17 @@ class ConfigReader():
         return returnValue
 
     def getDirectionsAPIURL(self):
-        return self.getTextByXPath(".//DirectionsAPISettings/APIURL")
+        return self.getTextByXPath(
+            ".//DirectionsAPISettings/DirectionsAPIURL"
+        )
 
     def getDirectionsAPIKey(self):
         return self.getTextByXPath(".//DirectionsAPISettings/APIKey")
+
+    def getGeocodingAPIURL(self):
+        return self.getTextByXPath(
+            ".//DirectionsAPISettings/GeocodingAPIURL"
+        )
 
     def getGPSDevicePort(self):
         return self.getTextByXPath(".//GPSSettings/Port")

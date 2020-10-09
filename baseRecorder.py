@@ -5,10 +5,7 @@ import os
 import struct
 import time
 
-import pocketsphinx
 import pyaudio
-
-Threshold = 20
 
 SHORT_NORMALIZE = (1.0/32768.0)
 chunk = 4096
@@ -17,12 +14,15 @@ CHANNELS = 1
 RATE = 44100
 swidth = 2
 
-TIMEOUT_LENGTH = 2
 
 class Recorder:
 
-    speechClient = None
+
+    audioThreshold = None
+    inputDeviceIndex = None
     stream = None
+    timeoutLength = None
+
 
     @staticmethod
     def rms(frame):
@@ -38,6 +38,16 @@ class Recorder:
 
         return rms * 1000
 
+    def __init__(
+        self,
+        audioInputDeviceIndex=None,
+        audioThreshold=20,
+        timeoutLength=2
+    ):
+        self.audioThreshold = audioThreshold
+        self.inputDeviceIndex = audioInputDeviceIndex
+        self.timeoutLength = timeoutLength
+
     def initializeStream(self):
         p = pyaudio.PyAudio()
         self.stream = p.open(
@@ -47,7 +57,7 @@ class Recorder:
             input=True,
             output=False,
             frames_per_buffer=chunk,
-            input_device_index=0
+            input_device_index=self.inputDeviceIndex
         )
 
     def record(self, firstChunk=None):
@@ -61,13 +71,13 @@ class Recorder:
             rec.append(firstChunk)
 
         current = time.time()
-        end = time.time() + TIMEOUT_LENGTH
+        end = time.time() + self.timeoutLength
 
         while current <= end:
 
             data = self.stream.read(chunk)
-            if self.rms(data) >= Threshold:
-                end = time.time() + TIMEOUT_LENGTH
+            if self.rms(data) >= self.audioThreshold:
+                end = time.time() + self.timeoutLength
 
             current = time.time()
             rec.append(data)
@@ -77,25 +87,7 @@ class Recorder:
         return recResampled[0]
 
     def translateSpeech(self, recording):
-
         print("Translating speech . . .")
-
-        bytesIO = io.BytesIO(recording)
-        buf = bytearray(1024)
-
-        content = recording
-        config = pocketsphinx.DefaultConfig()
-        config.set_string("-hmm", os.path.join(pocketsphinx.get_model_path(), "en-us"))
-        config.set_string("-lm", os.path.join(pocketsphinx.get_model_path(), "en-us.lm.bin"))
-        config.set_string("-dict", os.path.join(pocketsphinx.get_model_path(), "cmudict-en-us.dict"))
-        decoder = pocketsphinx.Decoder(config)
-
-        decoder.start_utt()
-        while bytesIO.readinto(buf):
-            decoder.process_raw(buf, False, False)
-        decoder.end_utt()
-
-        return [seg.word for seg in decoder.seg()]
 
     def listen(self, callback=None):
         self.initializeStream()
@@ -103,7 +95,7 @@ class Recorder:
         while True:
             input = self.stream.read(chunk)
             rms_val = self.rms(input)
-            if rms_val > Threshold:
+            if rms_val > self.audioThreshold:
                 print("Noise detected")
                 speechText = self.translateSpeech(
                     self.record(firstChunk=input)

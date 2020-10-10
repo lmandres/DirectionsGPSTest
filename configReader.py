@@ -18,17 +18,22 @@ class ConfigReader():
             pass
         return returnValue
 
+    def getDirectionsAPIKey(self):
+        return self.getTextByXPath(".//DirectionsAPISettings/APIKey")
+
     def getDirectionsAPIURL(self):
         return self.getTextByXPath(
             ".//DirectionsAPISettings/DirectionsAPIURL"
         )
 
-    def getDirectionsAPIKey(self):
-        return self.getTextByXPath(".//DirectionsAPISettings/APIKey")
-
     def getGeocodingAPIURL(self):
         return self.getTextByXPath(
             ".//DirectionsAPISettings/GeocodingAPIURL"
+        )
+
+    def getPlaceSearchAPIURL(self):
+        return self.getTextByXPath(
+            ".//DirectionsAPISettings/PlaceSearchAPIURL"
         )
 
     def getGPSDevicePort(self):
@@ -88,3 +93,17 @@ class ConfigReader():
         except:
             pass
         return returnValue
+
+    def getSavedAddresses(self):
+        returnDict = {}
+        try:
+            addressElements = self.configXML.findall(
+                ".//SavedAddresses/SavedAddress"
+            )
+            for addressElement in addressElements:
+                name = addressElement.find("Name").text.upper()
+                address = addressElement.find("Address").text
+                returnDict[name] = address
+        except:
+            pass
+        return returnDict

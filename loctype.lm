@@ -1,4 +1,4 @@
-Language model created by QuickLM on Fri Oct  9 17:27:57 EDT 2020
+Language model created by QuickLM on Fri Oct  9 17:27:42 EDT 2020
 Copyright (c) 1996-2010 Carnegie Mellon University and Alexander I. Rudnicky
 
 The model is in standard ARPA format, designed by Doug Paul while he was at MITRE.
@@ -7,27 +7,31 @@ The code that was used to produce this language model is available in Open Sourc
 Please visit http://www.speech.cs.cmu.edu/tools/ for more information
 
 The (fixed) discount mass is 0.5. The backoffs are computed using the ratio method.
-This model based on a corpus of 2 sentences and 4 words
+This model based on a corpus of 3 sentences and 5 words
 
 \data\
-ngram 1=4
-ngram 2=4
-ngram 3=2
+ngram 1=5
+ngram 2=6
+ngram 3=3
 
 \1-grams:
 -0.7782 </s> -0.3010
 -0.7782 <s> -0.2218
--1.0792 NO -0.2218
--1.0792 YES -0.2218
+-1.2553 ADDRESS -0.2218
+-1.2553 SAVED -0.2218
+-1.2553 SEARCH -0.2218
 
 \2-grams:
--0.6021 <s> NO 0.0000
--0.6021 <s> YES 0.0000
--0.3010 NO </s> -0.3010
--0.3010 YES </s> -0.3010
+-0.7782 <s> ADDRESS 0.0000
+-0.7782 <s> SAVED 0.0000
+-0.7782 <s> SEARCH 0.0000
+-0.3010 ADDRESS </s> -0.3010
+-0.3010 SAVED </s> -0.3010
+-0.3010 SEARCH </s> -0.3010
 
 \3-grams:
--0.3010 <s> NO </s>
--0.3010 <s> YES </s>
+-0.3010 <s> ADDRESS </s>
+-0.3010 <s> SAVED </s>
+-0.3010 <s> SEARCH </s>
 
 \end\

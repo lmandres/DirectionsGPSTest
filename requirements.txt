@@ -1,3 +1,4 @@
+geopy==2.0.0
 google-cloud-speech==2.0.0
 google-cloud-texttospeech==2.2.0
 pocketsphinx==0.1.15

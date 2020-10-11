@@ -2,6 +2,7 @@ import json
 import os
 import time
 
+from geopy import distance
 import pyttsx3
 import requests
 
@@ -125,14 +126,18 @@ class DirectionsClient():
         #)
         #self.gpsScanner.runLocate()
 
-    def getLocationLatLong(self):
+    def getLocationLatLong(self, locationHashIn=None):
 
         latitude = None
         longitude = None
 
         '''
         while True:
-            locationHash = self.gpsScanner.getLocationHash()
+
+            locationHash = currentHashIn
+            if not locationHash:
+                locationHash = self.gpsScanner.getLocationHash()
+
             try:
 
                 latitude = locationHash['latitude']
@@ -247,6 +252,7 @@ class DirectionsClient():
 
     def getDirectionsFromLocations(self, locationsListIn):
 
+        returnDirections = {}
         directionsResp = None
         reqData = {
             "locations": locationsListIn
@@ -260,22 +266,41 @@ class DirectionsClient():
             json=reqData
         )
         directionsResp = json.loads(req.text)
+        returnDirections = []
+        for legIndex in range(0, len(directionsResp["route"]["legs"]), 1):
+            legItem = directionsResp["route"]["legs"][legIndex]
+            returnDirections.append(
+                {
+                    "maneuvers": [],
+                    "visited": False
+                }
+            )
+            for maneuverIndex in range(0, len(legItem["maneuvers"]), 1):
+                maneuverItem = legItem["maneuvers"][maneuverIndex]
+                maneuverHash = {
+                    "narrative": maneuverItem["narrative"],
+                    "coords": {
+                        "lat": maneuverItem["startPoint"]["lat"],
+                        "long": maneuverItem["startPoint"]["lng"]
+                    },
+                    "visited": False
+                }
+                returnDirections[legIndex]["maneuvers"].append(maneuverHash)
 
-        return directionsResp
+        return returnDirections
 
     def getLocationFromASR(self, prompt):
 
         locationAddress = None
         typePrompts = (
-            "If you would like to search for a place, say \"search.\"",
-            "If you would like to enter an address, say \"address.\"",
-            "If you would like to go to a saved location, say \"saved.\""
+            "If you would like to search for a place, say \"SEARCH.\"",
+            "If you would like to enter an address, say \"ADDRESS.\"",
+            "If you would like to go to a saved location, say \"SAVED.\""
         )
 
         resp = None
         while True:
-            for typePrompt in typePrompts:
-                self.printAndSay(typePrompt)
+            self.printAndSay("\n".join(typePrompts))
             for wordItem in self.pocketSphinxASRLocType.listen().split(" "):
                 if wordItem.upper() in ("ADDRESS", "SAVED", "SEARCH"):
                     resp = wordItem.upper()
@@ -293,7 +318,8 @@ class DirectionsClient():
             locationInput = None
             self.printAndSay(prompt)
             locationInput = self.googleASR.listen()
-            print(locationInput)
+            if locationInput:
+                print(locationInput.upper())
 
             if str(resp).upper() == "ADDRESS":
                 locationAddress = locationInput
@@ -381,14 +407,124 @@ class DirectionsClient():
 
         return returnLocation
 
+    def announceManeuverPoint(self, maneuverItemIn):
+
+        def announceManeuverInMiles(narrativeIn, distanceInMilesIn):
+            narrative = narrativeIn
+            if distanceInMilesIn > 1:
+                narrative = "{} in {} miles.".format(
+                    narrativeIn,
+                    int(distanceInMilesIn)
+                )
+            else:
+                narrative = "{} in {} feet.".format(
+                    narrativeIn,
+                    int(distanceInMilesIn*5280)
+                )
+            self.printAndSay(narrative)
+
+        maneuverItem = maneuverItemIn
+        distanceInMiles = 10
+
+        announceList = []
+        while True:
+
+            announce = False
+            lastDistanceInMiles = distanceInMiles
+            narrative = maneuverItem["narrative"]
+
+            #currentHash = self.gpsScanner.getLocationHash()
+            currentLocation = self.getLocationLatLong()
+            maneuverLocation = (
+                maneuverItem["coords"]["lat"],
+                maneuverItem["coords"]["long"]
+            )
+            distanceInKm = distance.distance(
+                currentLocation,
+                maneuverLocation
+            ).km
+            distanceInMiles = distance.distance(
+                currentLocation,
+                maneuverLocation
+            ).miles
+
+            if (
+                3 < distanceInMiles and distanceInMiles <= 10 and
+                "10miles" not in announceList
+            ):
+                announceList.append("10miles")
+                announce = True
+            if (
+                2 < distanceInMiles and distanceInMiles <= 3 and
+                "3miles" not in announceList
+            ):
+                announceList.append("3miles")
+                announce = True
+            if (
+                1 < distanceInMiles and distanceInMiles <= 2 and
+                "2miles" not in announceList
+            ):
+                announceList.append("2miles")
+                announce = True
+            if (
+                1000 < int(distanceInMiles*5280) and
+                distanceInMiles <= 1 and
+                "1mile" not in announceList
+            ):
+                announceList.append("1mile")
+                announce = True
+            if (
+                500 < int(distanceInMiles*5280) and
+                int(distanceInMiles*5280) <= 1000 and
+                "1000feet" not in announceList
+            ):
+                announceList.append("1000feet")
+                announce = True
+            if (
+                200 < int(distanceInMiles*5280) and
+                int(distanceInMiles*5280) <= 500 and
+                "500feet" not in announceList
+            ):
+                announceList.append("500feet")
+                announce = True
+            if (
+                100 < int(distanceInMiles*5280) and
+                int(distanceInMiles*5280) <= 200 and
+                "200feet" not in announceList
+            ):
+                announceList.append("200feet")
+                announce = True
+            if (
+                10 < int(distanceInMiles*5280) and
+                int(distanceInMiles*5280) <= 100 and
+                "100feet" not in announceList
+            ):
+                announceList.append("100feet")
+                announce = True
+            if int(distanceInMiles*5280) <= 10:
+                announce = True
+
+            if announce:
+                announceManeuverInMiles(
+                    narrative,
+                    distanceInMiles
+                )
+
+            if (
+                distanceInMiles > lastDistanceInMiles or
+                int(distanceInMiles*5280) <= 10
+            ):
+                break
+
+            time.sleep(1)
+            print("Waiting for maneuver point . . .")
+
     def showDirections(self, locationsListIn):
 
-        directionsResp = self.getDirectionsFromLocations(locationsListIn)
-        for legIndex in range(0, len(directionsResp["route"]["legs"]), 1):
-            legHash = directionsResp["route"]["legs"][legIndex]
-            for maneuverIndex in range(0, len(legHash["maneuvers"]), 1):
-                maneuverHash = legHash["maneuvers"][maneuverIndex]
-                self.printAndSay(maneuverHash["narrative"])
+        directionsList = self.getDirectionsFromLocations(locationsListIn)
+        for legItem in directionsList:
+            for maneuverItem in legItem["maneuvers"]:
+                self.announceManeuverPoint(maneuverItem)
 
     def stopDirections(self):
         #self.gpsScanner.stopLocate()

@@ -8,7 +8,6 @@ import requests
 
 import configReader
 import gpsScanner
-import googleASR
 import pocketSphinxASR
 
 
@@ -97,8 +96,7 @@ class DirectionsClient():
         self.textToSpeech = pyttsx3.init()
         self.textToSpeech.setProperty("rate", ttsWordRate)
 
-        self.googleASR = googleASR.GoogleASR(
-            googleServiceAccountJSON=googleServiceAccountJSON,
+        self.googleASR = pocketSphinxASR.PocketSphinxASR(
             audioInputDeviceIndex=audioInputDeviceIndex,
             audioThreshold=audioThreshold,
             timeoutLength=timeoutLength

@@ -8,24 +8,29 @@ import pocketsphinx
 class PocketSphinxASR(Recorder):
 
 
-    dictPath = None
+    hmmPath = None
     lmPath = None
+    dictPath = None
     speechClient = None
 
 
     def __init__(self, *args, **kwargs):
-        if "dictPath" in kwargs.keys():
-            self.dictPath = kwargs.pop("dictPath")
+        if "hmmPath" in kwargs.keys():
+            self.hmmPath = kwargs.pop("hmmPath")
         if "lmPath" in kwargs.keys():
             self.lmPath = kwargs.pop("lmPath")
+        if "dictPath" in kwargs.keys():
+            self.dictPath = kwargs.pop("dictPath")
         super().__init__(*args, **kwargs)
 
-    def translateSpeech(self, recording):
-        super().translateSpeech(recording)
-        bytesIO = io.BytesIO(recording)
+    def translateSpeech(self):
+        print("Translating speech . . .")
+
+        bytesIO = self.getRecording()
         buf = bytearray(1024)
 
         decoder = pocketsphinx.Pocketsphinx(
+            hmm=self.hmmPath,
             lm=self.lmPath,
             dict=self.dictPath,
             verbose=False

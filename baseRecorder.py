@@ -2,9 +2,13 @@ import audioop
 import io
 import math
 import os
+import soundfile
 import struct
 import time
+import wave
 
+import noisereduce
+import numpy
 import pyaudio
 
 SHORT_NORMALIZE = (1.0/32768.0)
@@ -12,8 +16,9 @@ chunk = 4096
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 44100
-swidth = 2
 
+swidth = 2
+VOLUME_ADJUST = 1.0 
 
 class Recorder:
 
@@ -64,8 +69,8 @@ class Recorder:
 
         print('Recording beginning')
 
+        returnRec = []
         rec = []
-        recResampled = []
 
         if firstChunk:
             rec.append(firstChunk)
@@ -73,21 +78,76 @@ class Recorder:
         current = time.time()
         end = time.time() + self.timeoutLength
 
-        while current <= end:
+        try:
+            while current <= end:
 
-            data = self.stream.read(chunk)
-            if self.rms(data) >= self.audioThreshold:
-                end = time.time() + self.timeoutLength
+                data = self.stream.read(chunk)
+                if self.rms(data) >= self.audioThreshold:
+                    end = time.time() + self.timeoutLength
 
-            current = time.time()
-            rec.append(data)
+                current = time.time()
+                rec.append(data)
+        except KeyboardInterrupt:
+            pass
 
-        recResampled = audioop.ratecv(b"".join(rec), 2, 1, RATE, 16000, None)
+        returnRec = rec
 
-        return recResampled[0]
+        if VOLUME_ADJUST != 1.0:
+            returnRec = self.adjustVolume(returnRec)
 
-    def translateSpeech(self, recording):
-        print("Translating speech . . .")
+        returnRec = self.resample(returnRec)
+
+        return returnRec
+
+    def resample(self, recording):
+        returnSample = None
+        returnSample = audioop.ratecv(
+            b"".join(recording),
+            2,
+            1,
+            RATE,
+            16000,
+            None
+        )
+        return returnSample[0]
+
+    def adjustVolume(self, recording):
+        returnSample = []
+        tempRec = numpy.fromstring(b"".join(recording), numpy.int16)
+        for recChunk in tempRec:
+            tempChunk = recChunk
+            tempChunk *= VOLUME_ADJUST
+            returnSample.append(tempChunk.astype(numpy.int16))
+        return returnSample
+
+    def saveSpeech(self, recording):
+        dirPath = os.path.join(os.getcwd(), "recordings")
+        fileName = os.path.join(dirPath, "utterance.wav")
+        
+        wavRec = wave.open(fileName, mode="wb")
+        wavRec.setnchannels(1)
+        wavRec.setsampwidth(2)
+        wavRec.setframerate(16000)
+        wavRec.writeframes(recording)
+
+    def filterSpeech(self):
+        print("Filtering speech . . .")
+
+        dirPath = os.path.join(os.getcwd(), "recordings")
+        utteranceFileName = os.path.join(dirPath, "utterance.wav")
+        noiseFileName = os.path.join(dirPath, "backgroundnoise.wav")
+        filteredFileName = os.path.join(dirPath, "filteredutterance.wav")
+
+        utterance, srate = soundfile.read(utteranceFileName)
+        noise, srate = soundfile.read(noiseFileName)
+        filtered = noisereduce.reduce_noise(y=utterance, sr=srate, y_noise=noise)
+
+        soundfile.write(filteredFileName, filtered, srate)
+    def getRecording(self):
+        dirPath = os.path.join(os.getcwd(), "recordings")
+        filteredFileName = os.path.join(dirPath, "filteredutterance.wav")
+
+        return open(filteredFileName, "rb")
 
     def listen(self, callback=None):
         self.initializeStream()
@@ -97,8 +157,10 @@ class Recorder:
             rms_val = self.rms(input)
             if rms_val > self.audioThreshold:
                 print("Noise detected")
-                speechText = self.translateSpeech(
+                self.saveSpeech(
                     self.record(firstChunk=input)
                 )
+                self.filterSpeech()
+                speechText = self.translateSpeech()
                 self.stream.close()
                 return speechText
